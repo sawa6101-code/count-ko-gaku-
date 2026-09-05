@@ -1,9 +1,48 @@
 <!doctype html>
 <html lang="ja">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0f766e"><link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css"><title>高額療養費 多数回該当判定</title></head>
-<body><main class="container"><header><h1>高額療養費<br>多数回該当判定</h1><p class="sub">直近12か月の該当月を入力して、今回が多数回該当となるかを判定します。</p></header>
-<section class="card"><h2>1. 基本情報</h2><label>年齢<select id="age"><option value="under70">70歳未満</option><option value="70_74">70～74歳</option><option value="75plus">75歳以上</option></select></label><label>今回の受診月<input id="targetMonth" type="month"></label><label>保険者<select id="insurer"><option value="same">過去12か月と同じ保険者</option><option value="changed">保険者が途中で変更された</option></select></label><div id="ageNote" class="note"></div></section>
-<section class="card"><h2>2. 過去12か月の高額療養費該当状況</h2><p class="hint">高額療養費に該当した月、または限度額適用認定証等により自己負担限度額までの支払いとなった月をONにしてください。</p><div id="months" class="months"></div></section>
-<section class="card"><h2>3. 今回の扱い</h2><label class="check"><input type="checkbox" id="currentQualify"> 今回の療養月も高額療養費の対象になる見込み</label><label class="check" id="outpatientOnlyWrap"><input type="checkbox" id="outpatientOnly"> 今回は外来のみ</label></section>
-<button id="judge" class="primary">判定する</button><button id="reset" class="secondary">入力をリセット</button><section id="result" class="result hidden"></section>
-<section class="card"><h2>判定上の重要事項</h2><ul><li>多数回該当は、原則として直近12か月に高額療養費に該当した月が3回以上あり、4回目以降となる場合です。</li><li>限度額適用認定証等を使用して自己負担限度額を負担した月もカウント対象です。</li><li>同一保険者・同一被保険者での通算が基本です。保険者変更等では通算できない場合があります。</li><li>70～74歳では、外来のみの扱いに注意が必要です。</li><li>75歳以上は後期高齢者医療制度のため、保険者等の確認が必要です。</li></ul><p class="warning">本ツールは薬局・医療機関での事前確認を補助するものです。最終的な適用可否は加入保険者の審査・決定を優先してください。</p></section><footer><p>制度確認：厚生労働省・協会けんぽ公開資料を基準として実装</p></footer></main><script src="app.js"></script></body></html>
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e"><meta name="description" content="高額療養費の自己負担限度額・多数回該当を計算するPWA">
+<link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css"><title>高額療養費 限度額・多数回該当計算</title>
+</head>
+<body><main class="container">
+<header><h1>高額療養費<br>限度額・多数回該当計算</h1><p class="sub">2026年8月制度改正後の月額上限を基準に、区分・医療費・自己負担額から判定します。</p></header>
+
+<section class="card"><h2>1. 基本情報</h2>
+<label>年齢区分<select id="age"><option value="under70">70歳未満</option><option value="70_74">70～74歳</option><option value="75plus">75歳以上</option></select></label>
+<label>診療月<input id="targetMonth" type="month"></label>
+<label>所得区分<select id="income"></select></label>
+<label>今回の扱い<select id="careType"><option value="household">外来＋入院（世帯単位）</option><option value="outpatient">外来のみ（個人単位）</option></select></label>
+<label>保険者<select id="insurer"><option value="same">過去12か月と同じ保険者・同じ被保険者</option><option value="changed">保険者または被保険者が途中で変更</option></select></label>
+<div id="ageNote" class="note"></div></section>
+
+<section class="card"><h2>2. 今月の医療費</h2>
+<p class="hint">「総医療費」は保険診療の10割額です。自己負担額は実際に支払った保険診療分を入力してください。</p>
+<label>総医療費（10割）<input id="medicalTotal" type="number" min="0" step="1" inputmode="numeric" placeholder="例：500000"></label>
+<div class="row"><label>自己負担額合計<input id="copayTotal" type="number" min="0" step="1" inputmode="numeric" placeholder="例：150000"></label><button type="button" id="use30" class="small">3割から計算</button></div>
+<div class="subhead">医療機関等ごとの自己負担額（70歳未満の合算判定にも使用）</div>
+<div id="facilities"></div><button type="button" id="addFacility" class="secondary">＋ 医療機関を追加</button>
+<p id="aggregateNote" class="hint"></p></section>
+
+<section class="card"><h2>3. 過去12か月の高額療養費該当履歴</h2>
+<p class="hint">高額療養費の支給を受けた月、または限度額適用認定等により自己負担限度額までの支払いとなった月をONにしてください。70～74歳の外来限度額だけで該当した月は「外来のみ」にしてください。</p>
+<div id="months" class="history"></div></section>
+
+<section class="card"><h2>4. 世帯合算</h2>
+<p class="hint">世帯内の他の対象者・医療機関分がある場合は、今月の自己負担額合計に含めてください。70歳未満は原則として医療機関等ごとに21,000円以上の自己負担のみ合算対象です。</p>
+<label>世帯合算後の自己負担額<input id="householdCopay" type="number" min="0" step="1" inputmode="numeric" placeholder="入力しない場合は上の金額を使用"></label>
+</section>
+
+<button id="judge" class="primary">限度額・多数回該当を判定</button><button id="reset" class="secondary">入力をリセット</button>
+<section id="result" class="result hidden"></section>
+
+<section class="card"><h2>重要な注意</h2><ul>
+<li>2026年8月～2027年7月の制度を基準にしています。2027年8月以降は所得区分・上限額がさらに変更されるため、この版では別途確認が必要です。</li>
+<li>多数回該当は、療養月以前の直近12か月に3回以上、高額療養費の支給または限度額適用により上限額に達した月がある場合、4回目から適用されます。</li>
+<li>保険者が変わった場合、原則として多数回該当の月数は通算されません。</li>
+<li>70～74歳では、外来限度額だけで高額療養費となった月は多数回該当の回数に含めません。</li>
+<li>75歳以上は後期高齢者医療制度の限度額を表示します。月途中の75歳到達など特殊なケースは別途確認が必要です。</li>
+<li>食事療養標準負担額、差額ベッド代、先進医療等の保険外負担は高額療養費の対象外です。</li>
+</ul><p class="warning">本ツールは制度判定の補助です。実際の支給額・多数回該当・世帯合算・年間上限の適用は加入保険者の審査・決定を優先してください。</p></section>
+<footer><p>制度根拠：厚生労働省・全国健康保険協会・後期高齢者医療広域連合等の2026年8月制度資料</p></footer>
+</main><script src="app.js"></script></body></html>
